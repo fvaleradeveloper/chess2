@@ -1,0 +1,329 @@
+<html><head><base href="." />
+<meta charset="UTF-8" />
+<title>Simple Chess Game</title>
+<style>
+    body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        background: #2c3e50;
+        font-family: Arial, sans-serif;
+    }
+   
+    h1 {
+	display: block;
+    }
+
+    .game-container {
+        text-align: center;
+    }
+
+    #chessboard {
+        display: grid;
+        grid-template-columns: repeat(8, 60px);
+        grid-template-rows: repeat(8, 60px);
+        border: 2px solid #333;
+        margin: 20px auto;
+    }
+
+    .square {
+        width: 60px;
+        height: 60px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 40px;
+        cursor: pointer;
+    }
+
+    .white {
+        background-color: #f0d9b5;
+    }
+
+    .black {
+        background-color: #b58863;
+    }
+
+    .selected {
+        background-color: #7fb3d5;
+    }
+
+    .possible-move {
+        background-color: #82e0aa;
+    }
+
+    .turn-indicator {
+        color: white;
+        font-size: 24px;
+        margin: 10px;
+    }
+</style>
+</head>
+<body>
+<div class="game-container">
+    <div><h1 style="color: white;"><strong>Ajedrez de los Valera</strong></h1></div>
+    <div class="turn-indicator">White's Turn</div>
+    <div id="chessboard"></div>
+</div>
+
+<script>
+class ChessGame {
+    constructor() {
+        this.board = this.initializeBoard();
+        this.currentPlayer = 'white';
+        this.selectedPiece = null;
+        this.possibleMoves = [];
+        this.createBoard();
+    }
+
+    initializeBoard() {
+        const board = new Array(8).fill(null).map(() => new Array(8).fill(null));
+        
+        // Set up pawns
+        for (let i = 0; i < 8; i++) {
+            board[1][i] = { type: 'pawn', color: 'black' };
+            board[6][i] = { type: 'pawn', color: 'white' };
+        }
+
+        // Set up other pieces
+        const pieces = ['rook', 'knight', 'bishop', 'queen', 'king', 'bishop', 'knight', 'rook'];
+        pieces.forEach((piece, i) => {
+            board[0][i] = { type: piece, color: 'black' };
+            board[7][i] = { type: piece, color: 'white' };
+        });
+
+        return board;
+    }
+
+    createBoard() {
+        const chessboard = document.getElementById('chessboard');
+        chessboard.innerHTML = '';
+
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const square = document.createElement('div');
+                square.className = `square ${(row + col) % 2 === 0 ? 'white' : 'black'}`;
+                square.dataset.row = row;
+                square.dataset.col = col;
+                
+                const piece = this.board[row][col];
+                if (piece) {
+                    square.innerHTML = this.getPieceSymbol(piece);
+                }
+
+                square.addEventListener('click', (e) => this.handleSquareClick(row, col));
+                chessboard.appendChild(square);
+            }
+        }
+    }
+
+    getPieceSymbol(piece) {
+        const symbols = {
+            'white': {
+                'king': '♔',
+                'queen': '♕',
+                'rook': '♖',
+                'bishop': '♗',
+                'knight': '♘',
+                'pawn': '♙'
+            },
+            'black': {
+                'king': '♚',
+                'queen': '♛',
+                'rook': '♜',
+                'bishop': '♝',
+                'knight': '♞',
+                'pawn': '♟'
+            }
+        };
+        return symbols[piece.color][piece.type];
+    }
+
+    handleSquareClick(row, col) {
+        const piece = this.board[row][col];
+
+        if (this.selectedPiece) {
+            if (this.possibleMoves.some(move => move.row === row && move.col === col)) {
+                this.movePiece(this.selectedPiece, row, col);
+                this.clearSelection();
+            } else if (piece && piece.color === this.currentPlayer) {
+                this.clearSelection();
+                this.selectPiece(row, col);
+            } else {
+                this.clearSelection();
+            }
+        } else if (piece && piece.color === this.currentPlayer) {
+            this.selectPiece(row, col);
+        }
+    }
+
+    selectPiece(row, col) {
+        this.selectedPiece = { row, col };
+        this.possibleMoves = this.calculatePossibleMoves(row, col);
+        this.updateBoardDisplay();
+    }
+
+    clearSelection() {
+        this.selectedPiece = null;
+        this.possibleMoves = [];
+        this.updateBoardDisplay();
+    }
+
+    updateBoardDisplay() {
+        const squares = document.querySelectorAll('.square');
+        squares.forEach(square => {
+            const row = parseInt(square.dataset.row);
+            const col = parseInt(square.dataset.col);
+            
+            square.className = `square ${(row + col) % 2 === 0 ? 'white' : 'black'}`;
+            
+            if (this.selectedPiece && this.selectedPiece.row === row && this.selectedPiece.col === col) {
+                square.classList.add('selected');
+            }
+            
+            if (this.possibleMoves.some(move => move.row === row && move.col === col)) {
+                square.classList.add('possible-move');
+            }
+        });
+    }
+
+    calculatePossibleMoves(row, col) {
+        const piece = this.board[row][col];
+        const moves = [];
+
+        switch (piece.type) {
+            case 'pawn':
+                this.calculatePawnMoves(row, col, moves);
+                break;
+            case 'rook':
+                this.calculateRookMoves(row, col, moves);
+                break;
+            case 'knight':
+                this.calculateKnightMoves(row, col, moves);
+                break;
+            case 'bishop':
+                this.calculateBishopMoves(row, col, moves);
+                break;
+            case 'queen':
+                this.calculateRookMoves(row, col, moves);
+                this.calculateBishopMoves(row, col, moves);
+                break;
+            case 'king':
+                this.calculateKingMoves(row, col, moves);
+                break;
+        }
+
+        return moves;
+    }
+
+    calculatePawnMoves(row, col, moves) {
+        const direction = this.board[row][col].color === 'white' ? -1 : 1;
+        const startRow = this.board[row][col].color === 'white' ? 6 : 1;
+
+        // Forward move
+        if (!this.board[row + direction]?.[col]) {
+            moves.push({ row: row + direction, col: col });
+            // Double move from start position
+            if (row === startRow && !this.board[row + 2 * direction]?.[col]) {
+                moves.push({ row: row + 2 * direction, col: col });
+            }
+        }
+
+        // Capture moves
+        for (const captureCol of [col - 1, col + 1]) {
+            if (this.board[row + direction]?.[captureCol]?.color !== this.board[row][col].color) {
+                moves.push({ row: row + direction, col: captureCol });
+            }
+        }
+    }
+
+    calculateRookMoves(row, col, moves) {
+        const directions = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+        this.calculateLinearMoves(row, col, moves, directions);
+    }
+
+    calculateBishopMoves(row, col, moves) {
+        const directions = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+        this.calculateLinearMoves(row, col, moves, directions);
+    }
+
+    calculateLinearMoves(row, col, moves, directions) {
+        const piece = this.board[row][col];
+        
+        for (const [dx, dy] of directions) {
+            let newRow = row + dx;
+            let newCol = col + dy;
+            
+            while (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
+                if (!this.board[newRow][newCol]) {
+                    moves.push({ row: newRow, col: newCol });
+                } else if (this.board[newRow][newCol].color !== piece.color) {
+                    moves.push({ row: newRow, col: newCol });
+                    break;
+                } else {
+                    break;
+                }
+                newRow += dx;
+                newCol += dy;
+            }
+        }
+    }
+
+    calculateKnightMoves(row, col, moves) {
+        const knightMoves = [
+            [-2, -1], [-2, 1], [-1, -2], [-1, 2],
+            [1, -2], [1, 2], [2, -1], [2, 1]
+        ];
+
+        for (const [dx, dy] of knightMoves) {
+            const newRow = row + dx;
+            const newCol = col + dy;
+            
+            if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
+                if (!this.board[newRow][newCol] || 
+                    this.board[newRow][newCol].color !== this.board[row][col].color) {
+                    moves.push({ row: newRow, col: newCol });
+                }
+            }
+        }
+    }
+
+    calculateKingMoves(row, col, moves) {
+        const kingMoves = [
+            [-1, -1], [-1, 0], [-1, 1],
+            [0, -1], [0, 1],
+            [1, -1], [1, 0], [1, 1]
+        ];
+
+        for (const [dx, dy] of kingMoves) {
+            const newRow = row + dx;
+            const newCol = col + dy;
+            
+            if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
+                if (!this.board[newRow][newCol] || 
+                    this.board[newRow][newCol].color !== this.board[row][col].color) {
+                    moves.push({ row: newRow, col: newCol });
+                }
+            }
+        }
+    }
+
+    movePiece(from, toRow, toCol) {
+        const piece = this.board[from.row][from.col];
+        this.board[toRow][toCol] = piece;
+        this.board[from.row][from.col] = null;
+        
+        this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
+        document.querySelector('.turn-indicator').textContent = `${this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1)}'s Turn`;
+        
+        this.createBoard();
+    }
+}
+
+// Initialize the game
+const game = new ChessGame();
+</script>
+</body>
+</html>
